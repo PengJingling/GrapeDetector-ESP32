@@ -1,0 +1,8 @@
+path: datasets/grape
+train: images/train
+val: images/val
+
+names:
+  0: normal_grape
+  1: rotten_grape
+  2: damaged_grape
