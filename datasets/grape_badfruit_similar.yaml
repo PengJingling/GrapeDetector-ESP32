@@ -1,0 +1,6 @@
+path: datasets/grape_badfruit_similar
+train: images/train
+val: images/val
+names:
+  0: good_grape
+  1: bad_grape

@@ -1,4 +1,5 @@
 import argparse
+import csv
 import json
 import threading
 import time
@@ -17,12 +18,18 @@ latest = {
     "model": "",
     "image_endpoint": "",
     "allowed_classes": [],
+    "conf": 0.0,
+    "training": {},
 }
 
 
 DEFAULT_GRAPE_CLASSES = [
     "grape",
     "grape_bunch",
+    "ripe",
+    "ripe_grape",
+    "unripe",
+    "unripe_grape",
     "normal",
     "normal_grape",
     "rotten",
@@ -73,9 +80,47 @@ def is_bad_class(class_name: str) -> bool:
     )
 
 
+def collect_training_info(model_path: str) -> dict:
+    result_files = sorted(Path("runs").rglob("results.csv"), key=lambda p: p.stat().st_mtime, reverse=True)
+    info = {
+        "model_path": model_path,
+        "model_exists": Path(model_path).exists(),
+        "training_run": "",
+        "last_epoch": "",
+        "precision": "",
+        "recall": "",
+        "map50": "",
+        "map50_95": "",
+        "artifacts": [],
+    }
+    if not result_files:
+        return info
+
+    results_csv = result_files[0]
+    info["training_run"] = str(results_csv.parent)
+    try:
+        rows = list(csv.DictReader(results_csv.open(newline="", encoding="utf-8")))
+        if rows:
+            last = rows[-1]
+            info["last_epoch"] = last.get("epoch", "")
+            info["precision"] = last.get("metrics/precision(B)", "")
+            info["recall"] = last.get("metrics/recall(B)", "")
+            info["map50"] = last.get("metrics/mAP50(B)", "")
+            info["map50_95"] = last.get("metrics/mAP50-95(B)", "")
+    except Exception as exc:
+        info["error"] = str(exc)
+
+    for name in ["results.png", "confusion_matrix.png", "labels.jpg"]:
+        if (results_csv.parent / name).exists():
+            info["artifacts"].append(name)
+    return info
+
+
 def summarize(result, allowed: set[str]) -> dict:
     names = result.names
     detections = []
+    ripe = 0
+    unripe = 0
     normal = 0
     abnormal = 0
     ignored = 0
@@ -93,7 +138,12 @@ def summarize(result, allowed: set[str]) -> dict:
         is_bad = is_bad_class(name)
         if is_bad:
             abnormal += 1
+        elif "unripe" in name.lower() or "immature" in name.lower():
+            unripe += 1
+            normal += 1
         else:
+            if "ripe" in name.lower() or "mature" in name.lower():
+                ripe += 1
             normal += 1
 
         detections.append(
@@ -108,9 +158,12 @@ def summarize(result, allowed: set[str]) -> dict:
     total = normal + abnormal
     return {
         "total_grapes": total,
+        "ripe_grapes": ripe,
+        "unripe_grapes": unripe,
         "normal_grapes": normal,
         "abnormal_grapes": abnormal,
         "bad_rate": round(abnormal / total, 4) if total else 0.0,
+        "ripe_rate": round(ripe / total, 4) if total else 0.0,
         "ignored_non_grape_detections": ignored,
         "detections": detections,
     }
@@ -220,10 +273,25 @@ def render_html() -> str:
   <p>Allowed classes: {", ".join(latest.get("allowed_classes", []))}</p>
   <div class="bar">
     <div class="metric">Total<b>{summary.get("total_grapes", 0)}</b></div>
-    <div class="metric">Normal<b>{summary.get("normal_grapes", 0)}</b></div>
+    <div class="metric">Ripe<b>{summary.get("ripe_grapes", 0)}</b></div>
+    <div class="metric">Unripe<b>{summary.get("unripe_grapes", 0)}</b></div>
     <div class="metric">Bad<b>{summary.get("abnormal_grapes", 0)}</b></div>
     <div class="metric">Bad Rate<b>{summary.get("bad_rate", 0)}</b></div>
   </div>
+  <h3>Training</h3>
+  <p>Model: {latest.get("model", "")} | Conf: {latest.get("conf", "")}</p>
+  <p>Run: {latest.get("training", {}).get("training_run", "")}</p>
+  <p>Epoch: {latest.get("training", {}).get("last_epoch", "")} |
+     Precision: {latest.get("training", {}).get("precision", "")} |
+     Recall: {latest.get("training", {}).get("recall", "")} |
+     mAP50: {latest.get("training", {}).get("map50", "")}</p>
+  <p>
+    <a href="/training/results.png" target="_blank">训练曲线</a>
+    |
+    <a href="/training/confusion_matrix.png" target="_blank">混淆矩阵</a>
+    |
+    <a href="/training/labels.jpg" target="_blank">标签分布</a>
+  </p>
   <div class="images">
     <figure>
       <img src="/latest.jpg?t={cache_buster}" alt="raw frame">
@@ -283,6 +351,24 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(latest, ensure_ascii=False).encode("utf-8"))
             return
 
+        if self.path.startswith("/training/"):
+            name = self.path.rsplit("/", 1)[-1]
+            if name not in {"results.png", "confusion_matrix.png", "labels.jpg"}:
+                self.send_error(404)
+                return
+            run_dir = latest.get("training", {}).get("training_run", "")
+            image_path = Path(run_dir) / name if run_dir else Path()
+            if not image_path.exists():
+                self.send_error(404)
+                return
+            content_type = "image/jpeg" if name.endswith(".jpg") else "image/png"
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(image_path.read_bytes())
+            return
+
         self.send_error(404)
 
     def log_message(self, fmt: str, *args) -> None:
@@ -304,6 +390,8 @@ def main() -> None:
     latest["device"] = args.device
     latest["model"] = args.model
     latest["image_endpoint"] = args.image_endpoint
+    latest["conf"] = args.conf
+    latest["training"] = collect_training_info(args.model)
     allowed = parse_classes(args.allowed_classes)
     latest["allowed_classes"] = sorted(allowed)
     model = load_model(args.model)

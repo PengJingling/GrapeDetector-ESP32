@@ -188,9 +188,9 @@ http://127.0.0.1:8767
 Recommended final classes:
 
 ```text
-normal_grape
-rotten_grape
-damaged_grape
+ripe_grape
+unripe_grape
+bad_grape
 ```
 
 Public Roboflow grape models may only detect an entire grape bunch or generic `grape`. For per-berry counting and bad fruit localization, train or fine-tune a grape-berry model with per-grape labels.
@@ -205,7 +205,7 @@ python pc_server\capture_yolo_images.py --split val --count 20 --image-endpoint 
 Train:
 
 ```powershell
-python pc_server\train_grape_yolo.py --data datasets\grape.yaml --epochs 80 --imgsz 960 --batch 4
+python pc_server\train_grape_yolo.py --data datasets\grape.yaml --epochs 50 --imgsz 960 --batch 4
 ```
 
 Copy the trained `best.pt` to:
