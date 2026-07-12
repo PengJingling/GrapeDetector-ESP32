@@ -46,10 +46,8 @@
 #define AP_SSID "GrapeDetector-ESP32"
 #define AP_PASSWORD "12345678"
 
-// PCB lower-board OV2640 24P FPC pin map from the wiring document.
-// This LXB-OVX640 adapter exposes RES but not XCLK. It appears to have its
-// own clock source on the camera adapter board, so ESP32 does not drive XCLK.
-// Wire RES to 3V3 and PWDN to GND.
+// LXB-OVX640 / camera adapter pin map without exposed XCLK.
+// The adapter board provides the camera clock. Wire RES/RST to 3V3 and PWDN to GND.
 #define CAM_PIN_PWDN  -1
 #define CAM_PIN_RESET -1
 #define CAM_PIN_XCLK  -1

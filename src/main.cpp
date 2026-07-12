@@ -17,6 +17,10 @@ esp_err_t cameraInitError = ESP_OK;
 uint32_t captureFailCount = 0;
 SemaphoreHandle_t cameraMutex = nullptr;
 int cameraBrightness = CAMERA_DEFAULT_BRIGHTNESS;
+int cameraJpegQuality = CAMERA_JPEG_QUALITY;
+int cameraContrast = 0;
+int cameraSaturation = 0;
+int cameraSharpness = 0;
 bool manualExposure = CAMERA_DEFAULT_MANUAL_EXPOSURE;
 int cameraAecValue = CAMERA_DEFAULT_AEC_VALUE;
 int cameraAgcGain = CAMERA_DEFAULT_AGC_GAIN;
@@ -98,10 +102,11 @@ static void applyCameraTuning(sensor_t *sensor) {
     return;
   }
 
-  sensor->set_quality(sensor, CAMERA_JPEG_QUALITY);
+  sensor->set_quality(sensor, cameraJpegQuality);
   sensor->set_brightness(sensor, cameraBrightness);
-  sensor->set_contrast(sensor, 0);
-  sensor->set_saturation(sensor, 0);
+  sensor->set_contrast(sensor, cameraContrast);
+  sensor->set_saturation(sensor, cameraSaturation);
+  sensor->set_sharpness(sensor, cameraSharpness);
   sensor->set_gain_ctrl(sensor, manualExposure ? 0 : 1);
   sensor->set_exposure_ctrl(sensor, manualExposure ? 0 : 1);
   if (manualExposure) {
@@ -135,7 +140,7 @@ static bool initCamera() {
   config.xclk_freq_hz = CAMERA_XCLK_FREQ_HZ;
   config.pixel_format = PIXFORMAT_JPEG;
   config.frame_size = psramFound() ? CAMERA_HIGHRES_FRAME_SIZE : CAMERA_STREAM_FRAME_SIZE;
-  config.jpeg_quality = CAMERA_JPEG_QUALITY;
+  config.jpeg_quality = cameraJpegQuality;
   config.fb_count = psramFound() ? 2 : 1;
   config.fb_location = psramFound() ? CAMERA_FB_IN_PSRAM : CAMERA_FB_IN_DRAM;
   config.grab_mode = psramFound() ? CAMERA_GRAB_LATEST : CAMERA_GRAB_WHEN_EMPTY;
@@ -593,6 +598,10 @@ static void handleCameraId() {
 static void handleSettingsJson() {
   String json = "{";
   json += "\"brightness\":" + String(cameraBrightness);
+  json += ",\"jpeg_quality\":" + String(cameraJpegQuality);
+  json += ",\"contrast\":" + String(cameraContrast);
+  json += ",\"saturation\":" + String(cameraSaturation);
+  json += ",\"sharpness\":" + String(cameraSharpness);
   json += ",\"manual_exposure\":" + String(manualExposure ? "true" : "false");
   json += ",\"aec_value\":" + String(cameraAecValue);
   json += ",\"agc_gain\":" + String(cameraAgcGain);
@@ -606,6 +615,21 @@ static void handleSettingsJson() {
 static void handleControl() {
   if (server.hasArg("brightness")) {
     cameraBrightness = clampInt(server.arg("brightness").toInt(), -2, 2);
+  }
+  if (server.hasArg("quality")) {
+    cameraJpegQuality = clampInt(server.arg("quality").toInt(), 8, 30);
+  }
+  if (server.hasArg("contrast")) {
+    cameraContrast = clampInt(server.arg("contrast").toInt(), -2, 2);
+  }
+  if (server.hasArg("saturation")) {
+    cameraSaturation = clampInt(server.arg("saturation").toInt(), -2, 2);
+  }
+  if (server.hasArg("sharpness")) {
+    cameraSharpness = clampInt(server.arg("sharpness").toInt(), -2, 2);
+  }
+
+  if (server.args() > 0) {
     if (cameraMutex) {
       xSemaphoreTake(cameraMutex, pdMS_TO_TICKS(1000));
     }
@@ -697,6 +721,10 @@ static void handleHealth() {
   json += ",\"capture_fail_count\":" + String(captureFailCount);
   json += ",\"camera_flash_on\":" + String(cameraFlashOn ? "true" : "false");
   json += ",\"camera_flash_pin\":" + String(CAMERA_FLASH_PIN);
+  json += ",\"jpeg_quality\":" + String(cameraJpegQuality);
+  json += ",\"contrast\":" + String(cameraContrast);
+  json += ",\"saturation\":" + String(cameraSaturation);
+  json += ",\"sharpness\":" + String(cameraSharpness);
   json += ",\"manual_exposure\":" + String(manualExposure ? "true" : "false");
   json += ",\"aec_value\":" + String(cameraAecValue);
   json += ",\"agc_gain\":" + String(cameraAgcGain);

@@ -1,4 +1,4 @@
-path: datasets/grape
+path: datasets/grape_zenodo_fast
 train: images/train
 val: images/val
 names:

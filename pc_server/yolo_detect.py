@@ -9,6 +9,10 @@ from urllib.request import urlopen
 DEFAULT_GRAPE_CLASSES = [
     "grape",
     "grape_bunch",
+    "ripe",
+    "ripe_grape",
+    "unripe",
+    "unripe_grape",
     "normal",
     "normal_grape",
     "rotten",
@@ -70,6 +74,8 @@ ALLOWED_CLASSES = {item.lower() for item in DEFAULT_GRAPE_CLASSES}
 def summarize_detections(result) -> dict:
     names = result.names
     detections = []
+    ripe = 0
+    unripe = 0
     normal = 0
     abnormal = 0
     ignored = 0
@@ -87,7 +93,12 @@ def summarize_detections(result) -> dict:
 
         if is_bad:
             abnormal += 1
+        elif "unripe" in name.lower() or "immature" in name.lower():
+            unripe += 1
+            normal += 1
         else:
+            if "ripe" in name.lower() or "mature" in name.lower():
+                ripe += 1
             normal += 1
 
         detections.append(
@@ -105,9 +116,12 @@ def summarize_detections(result) -> dict:
 
     return {
         "total_grapes": total,
+        "ripe_grapes": ripe,
+        "unripe_grapes": unripe,
         "normal_grapes": normal,
         "abnormal_grapes": abnormal,
         "bad_rate": round(bad_rate, 4),
+        "ripe_rate": round(ripe / total, 4) if total else 0.0,
         "ignored_non_grape_detections": ignored,
         "detections": detections,
     }

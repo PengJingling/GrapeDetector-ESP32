@@ -7,6 +7,16 @@ __pycache__/
 *.pyc
 .env
 data/
+downloads/
+train_*.log
+train_*.err.log
+yolo_dashboard*.log
+yolo_dashboard*.err.log
+pc_server/current_esp32_capture.jpg
+pc_server/preview/
+datasets/**/images/
+datasets/**/labels/
+datasets/**/*.cache
 *.pt
 models/*.pt
 runs/
